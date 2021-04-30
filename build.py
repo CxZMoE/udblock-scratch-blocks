@@ -295,13 +295,13 @@ class Gen_compressed(threading.Thread):
 
     # Remove Blockly.Blocks to be compatible with Blockly.
     remove = "var Blockly={Blocks:{}};"
-    self.do_compile(params, target_filename, filenames, remove)
+    self. do_compile(params, target_filename, filenames, remove)
 
   def do_compile(self, params, target_filename, filenames, remove):
     if self.closure_env["closure_compiler"] == REMOTE_COMPILER:
       do_compile = self.do_compile_remote
     else:
-      do_compile = self.do_compile_local
+      do_compile = self.do_compile_remote
     json_data = do_compile(params, target_filename)
 
     if self.report_errors(target_filename, filenames, json_data):
@@ -328,7 +328,12 @@ class Gen_compressed(threading.Thread):
       for group in [[CLOSURE_COMPILER_NPM], dash_args]:
         args.extend(filter(lambda item: item, group))
 
-      proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+      newArgs = []
+      for i in args:
+        if i.find("node_modules\google-closure-library") != -1:
+          i = i.replace("node_modules\google-closure-library", "..\cl")
+        newArgs.append(i)
+      proc = subprocess.Popen(newArgs, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
       (stdout, stderr) = proc.communicate()
 
       # Build the JSON response.
@@ -372,7 +377,8 @@ class Gen_compressed(threading.Thread):
             remoteParams.append((arg, value))
 
       headers = {"Content-type": "application/x-www-form-urlencoded"}
-      conn = httplib.HTTPSConnection("closure-compiler.appspot.com")
+      conn = httplib.HTTPSConnection("127.0.0.1",7890)
+      conn.set_tunnel('closure-compiler.appspot.com', 433)
       conn.request("POST", "/compile", urllib.urlencode(remoteParams), headers)
       response = conn.getresponse()
       json_str = response.read()
@@ -509,7 +515,7 @@ class Gen_langfiles(threading.Thread):
                       ["en.json", "qqq.json", "synonyms.json"]]):
       try:
         subprocess.check_call([
-            "python",
+            "python2.7",
             os.path.join("i18n", "js_to_json.py"),
             "--input_file", "msg/messages.js",
             "--output_dir", "msg/json/",
@@ -526,7 +532,7 @@ class Gen_langfiles(threading.Thread):
     try:
       # Use create_messages.py to create .js files from .json files.
       cmd = [
-          "python",
+          "python2.7",
           os.path.join("i18n", "create_messages.py"),
           "--source_lang_file", os.path.join("msg", "json", "en.json"),
           "--source_synonym_file", os.path.join("msg", "json", "synonyms.json"),
