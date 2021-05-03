@@ -51,7 +51,7 @@ CLOSURE_COMPILER = REMOTE_COMPILER
 CLOSURE_DIR_NPM = "node_modules"
 CLOSURE_ROOT_NPM = os.path.join("node_modules")
 CLOSURE_LIBRARY_NPM = "google-closure-library"
-CLOSURE_COMPILER_NPM = ("google-closure-compiler.cmd" if os.name == "nt" else "google-closure-compiler")
+CLOSURE_COMPILER_NPM = "google-closure-compiler"
 
 def import_path(fullpath):
   """Import a file with full path specification.
@@ -229,6 +229,11 @@ class Gen_compressed(threading.Thread):
     self.gen_blocks("horizontal")
     self.gen_blocks("vertical")
     self.gen_blocks("common")
+    self.gen_generator("javascript")
+    self.gen_generator("python")
+    self.gen_generator("php")
+    self.gen_generator("dart")
+    self.gen_generator("lua")
 
   def gen_core(self, vertical):
     if vertical:
@@ -272,10 +277,6 @@ class Gen_compressed(threading.Thread):
     elif block_type == "common":
       target_filename = "blocks_compressed.js"
       filenames = glob.glob(os.path.join("blocks_common", "*.js"))
-
-    # glob.glob ordering is platform-dependent and not necessary deterministic
-    filenames.sort()  # Deterministic build.
-
     # Define the parameters for the POST request.
     params = [
       ("compilation_level", "SIMPLE"),
@@ -287,7 +288,6 @@ class Gen_compressed(threading.Thread):
     # Add Blockly.Colours for use of centralized colour bank
     filenames.append(os.path.join("core", "colours.js"))
     filenames.append(os.path.join("core", "constants.js"))
-
     for filename in filenames:
       # Append filenames as false arguments the step before compiling will
       # either transform them into arguments for local or remote compilation
@@ -295,13 +295,37 @@ class Gen_compressed(threading.Thread):
 
     # Remove Blockly.Blocks to be compatible with Blockly.
     remove = "var Blockly={Blocks:{}};"
-    self. do_compile(params, target_filename, filenames, remove)
+    self.do_compile(params, target_filename, filenames, remove)
+
+  def gen_generator(self, language):
+    target_filename = language + "_compressed.js"
+    # Define the parameters for the POST request.
+    params = [
+      ("compilation_level", "SIMPLE"),
+    ]
+
+    # Read in all the source files.
+    # Add Blockly.Generator to be compatible with the compiler.
+    params.append(("js_file", os.path.join("build", "gen_generator.js")))
+    filenames = glob.glob(
+      os.path.join("generators", language, "*.js"))
+    filenames.sort()  # Deterministic build.
+    filenames.insert(0, os.path.join("generators", language + ".js"))
+    for filename in filenames:
+      # Append filenames as false arguments the step before compiling will
+      # either transform them into arguments for local or remote compilation
+      params.append(("js_file", filename))
+    filenames.insert(0, "[goog.provide]")
+
+    # Remove Blockly.Generator to be compatible with Blockly.
+    remove = "var Blockly={Generator:{}};"
+    self.do_compile(params, target_filename, filenames, remove)
 
   def do_compile(self, params, target_filename, filenames, remove):
     if self.closure_env["closure_compiler"] == REMOTE_COMPILER:
       do_compile = self.do_compile_remote
     else:
-      do_compile = self.do_compile_remote
+      do_compile = self.do_compile_local
     json_data = do_compile(params, target_filename)
 
     if self.report_errors(target_filename, filenames, json_data):
@@ -322,18 +346,13 @@ class Gen_compressed(threading.Thread):
         if pair[0][2:] not in filter_keys:
           dash_args.extend(pair)
 
-      # Build the final args array by prepending CLOSURE_COMPILER_NPM to
+      # Build the final args array by prepending google-closure-compiler to
       # dash_args and dropping any falsy members
       args = []
-      for group in [[CLOSURE_COMPILER_NPM], dash_args]:
+      for group in [["google-closure-compiler"], dash_args]:
         args.extend(filter(lambda item: item, group))
 
-      newArgs = []
-      for i in args:
-        if i.find("node_modules\google-closure-library") != -1:
-          i = i.replace("node_modules\google-closure-library", "..\cl")
-        newArgs.append(i)
-      proc = subprocess.Popen(newArgs, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+      proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
       (stdout, stderr) = proc.communicate()
 
       # Build the JSON response.
@@ -377,8 +396,7 @@ class Gen_compressed(threading.Thread):
             remoteParams.append((arg, value))
 
       headers = {"Content-type": "application/x-www-form-urlencoded"}
-      conn = httplib.HTTPSConnection("127.0.0.1",7890)
-      conn.set_tunnel('closure-compiler.appspot.com', 433)
+      conn = httplib.HTTPSConnection("closure-compiler.appspot.com")
       conn.request("POST", "/compile", urllib.urlencode(remoteParams), headers)
       response = conn.getresponse()
       json_str = response.read()
@@ -515,7 +533,7 @@ class Gen_langfiles(threading.Thread):
                       ["en.json", "qqq.json", "synonyms.json"]]):
       try:
         subprocess.check_call([
-            "python2.7",
+            "python",
             os.path.join("i18n", "js_to_json.py"),
             "--input_file", "msg/messages.js",
             "--output_dir", "msg/json/",
@@ -532,7 +550,7 @@ class Gen_langfiles(threading.Thread):
     try:
       # Use create_messages.py to create .js files from .json files.
       cmd = [
-          "python2.7",
+          "python",
           os.path.join("i18n", "create_messages.py"),
           "--source_lang_file", os.path.join("msg", "json", "en.json"),
           "--source_synonym_file", os.path.join("msg", "json", "synonyms.json"),
@@ -581,7 +599,7 @@ if __name__ == "__main__":
     (stdout, _) = test_proc.communicate()
     assert stdout == read(os.path.join("build", "test_expect.js"))
 
-    print("Using local compiler: %s ...\n" % CLOSURE_COMPILER_NPM)
+    print("Using local compiler: google-closure-compiler ...\n")
   except (ImportError, AssertionError):
     print("Using remote compiler: closure-compiler.appspot.com ...\n")
 
