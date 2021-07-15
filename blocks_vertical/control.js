@@ -245,6 +245,27 @@ Blockly.Blocks['control_wait'] = {
   }
 };
 
+Blockly.Blocks['control_waitms'] = {
+  /**
+   * Block to wait (pause) stack.
+   * @this Blockly.Block
+   */
+  init: function() {
+    this.jsonInit({
+      "id": "control_waitms",
+      "message0": "等待%1毫秒",
+      "args0": [
+        {
+          "type": "input_value",
+          "name": "DURATION"
+        }
+      ],
+      "category": Blockly.Categories.control,
+      "extensions": ["colours_control", "shape_statement"]
+    });
+  }
+};
+
 Blockly.Blocks['control_wait_until'] = {
   /**
    * Block to wait until a condition becomes true.

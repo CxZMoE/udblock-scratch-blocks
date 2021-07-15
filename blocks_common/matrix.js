@@ -52,3 +52,23 @@ Blockly.Blocks['matrix'] = {
     });
   }
 };
+Blockly.Blocks['matrixud'] = {
+  /**
+   * Block for matrix value.
+   * @this Blockly.Block
+   */
+  init: function() {
+    this.jsonInit({
+      "message0": "%1",
+      "args0": [
+        {
+          "type": "field_matrixud",
+          "name": "MATRIX"
+        }
+      ],
+      "outputShape": Blockly.OUTPUT_SHAPE_ROUND,
+      "output": "Number",
+      "extensions": ["colours_pen"]
+    });
+  }
+};
